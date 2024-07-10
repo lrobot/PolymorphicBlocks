@@ -8,17 +8,20 @@ from .JlcPart import JlcPart, JlcTableSelector
 class JlcCapacitor(TableDeratingCapacitor, CeramicCapacitor, SmdStandardPackageSelector, JlcTableSelector):
   PACKAGE_FOOTPRINT_MAP = {
     # 0201 not in parts table, C_0201_0603Metric
-
+    '402': 'Capacitor_SMD:C_0402_1005Metric',
     '0402': 'Capacitor_SMD:C_0402_1005Metric',
+    '603': 'Capacitor_SMD:C_0603_1608Metric',
     '0603': 'Capacitor_SMD:C_0603_1608Metric',
+    '805': 'Capacitor_SMD:C_0805_2012Metric',
     '0805': 'Capacitor_SMD:C_0805_2012Metric',
     '1206': 'Capacitor_SMD:C_1206_3216Metric',
+    '1210': 'Capacitor_SMD:C_1210_3225Metric',
     '1812': 'Capacitor_SMD:C_1812_4532Metric',
-
     'C0402': 'Capacitor_SMD:C_0402_1005Metric',
     'C0603': 'Capacitor_SMD:C_0603_1608Metric',
     'C0805': 'Capacitor_SMD:C_0805_2012Metric',
     'C1206': 'Capacitor_SMD:C_1206_3216Metric',
+    'C1210': 'Capacitor_SMD:C_1210_3225Metric',
     'C1812': 'Capacitor_SMD:C_1812_4532Metric',
   }
   DERATE_VOLTCO_MAP = {  # in terms of %capacitance / V over 3.6
@@ -26,6 +29,7 @@ class JlcCapacitor(TableDeratingCapacitor, CeramicCapacitor, SmdStandardPackageS
     'Capacitor_SMD:C_0603_1608Metric': float('inf'),  # not supported, should not generate below 1uF
     'Capacitor_SMD:C_0805_2012Metric': 0.08,
     'Capacitor_SMD:C_1206_3216Metric': 0.04,
+    'Capacitor_SMD:C_1210_3225Metric': 0.04,
     'Capacitor_SMD:C_1812_4532Metric': 0.04,  # arbitrary, copy from 1206
   }
 
@@ -38,10 +42,10 @@ class JlcCapacitor(TableDeratingCapacitor, CeramicCapacitor, SmdStandardPackageS
   @classmethod
   def _make_table(cls) -> PartsTable:
     CAPACITOR_MATCHES = {
-      'nominal_capacitance': re.compile("(^|\s)([^±]\S+F)($|\s)"),
-      'tolerance': re.compile("(^|\s)(±\S+[%F])($|\s)"),
-      'voltage': re.compile("(^|\s)(\d\S*V)($|\s)"),  # make sure not to catch 'Y5V'
-      'tempco': re.compile("(^|\s)([CXYZ]\d[GPRSTUV])($|\s)"),
+      'nominal_capacitance': re.compile("(^|\\s)([^±]\\S+F)($|\\s)"),
+      'tolerance': re.compile("(^|\\s)(±\\S+[%F])($|\\s)"),
+      'voltage': re.compile("(^|\\s)(\\d\\S*V)($|\\s)"),  # make sure not to catch 'Y5V'
+      'tempco': re.compile("(^|\\s)([CXYZ]\\d[GPRSTUV])($|\\s)"),
     }
 
     def parse_row(row: PartsTableRow) -> Optional[Dict[PartsTableColumn, Any]]:
@@ -54,9 +58,10 @@ class JlcCapacitor(TableDeratingCapacitor, CeramicCapacitor, SmdStandardPackageS
         footprint = cls.PACKAGE_FOOTPRINT_MAP[row[cls._PACKAGE_HEADER]]
         extracted_values = cls.parse(row[cls.DESCRIPTION_COL], CAPACITOR_MATCHES)
 
-        tempco = extracted_values['tempco'][1]
-        if tempco[0] not in ('X', 'C') or tempco[2] not in ('R', 'S', 'G'):
-          return None
+        # some JLC part have no tempco info, but still want use it
+        # tempco = extracted_values['tempco'][1]
+        # if tempco[0] not in ('X', 'C') or tempco[2] not in ('R', 'S', 'G'):
+        #   return None
 
         nominal_capacitance = PartParserUtil.parse_value(extracted_values['nominal_capacitance'][1], 'F')
 
@@ -72,7 +77,9 @@ class JlcCapacitor(TableDeratingCapacitor, CeramicCapacitor, SmdStandardPackageS
         new_cols.update(cls._parse_jlcpcb_common(row))
 
         return new_cols
-      except (KeyError, PartParserUtil.ParseError):
+      except (KeyError, PartParserUtil.ParseError) as e:
+        # when some JLC part didnot loaded correctly, can use print to find cause
+        # print('KeyError', row[cls._PACKAGE_HEADER], row.value, e)
         return None
 
     return cls._jlc_table().map_new_columns(parse_row)
